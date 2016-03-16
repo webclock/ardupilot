@@ -117,8 +117,8 @@ class AP_Arming_Plane : public AP_Arming
 {
 public:
     AP_Arming_Plane(const AP_AHRS &ahrs_ref, const AP_Baro &baro, Compass &compass,
-                    const enum HomeState &home_set) :
-        AP_Arming(ahrs_ref, baro, compass, home_set) {
+                    const AP_BattMonitor &battery, const enum HomeState &home_set) :
+        AP_Arming(ahrs_ref, baro, compass, battery, home_set) {
             AP_Param::setup_object_defaults(this, var_info);
     }
     bool pre_arm_checks(bool report);
@@ -204,6 +204,7 @@ private:
         float initial_correction;
         uint32_t last_correction_time_ms;
         uint8_t in_range_count;
+        float height_estimate;
     } rangefinder_state;
 #endif
 
@@ -427,6 +428,9 @@ private:
         // Set land_complete if we are within 2 seconds distance or within 3 meters altitude of touchdown
         bool land_complete:1;
 
+        // Flag to indicate if we have triggered pre-flare. This occurs when we have reached LAND_PF_ALT
+        bool land_pre_flare:1;
+
         // should we fly inverted?
         bool inverted_flight:1;
 
@@ -524,6 +528,11 @@ private:
     // this controls throttle suppression in auto modes
     bool throttle_suppressed;
 
+    // reduce throttle to eliminate battery over-current
+    int8_t  throttle_watt_limit_max;
+    int8_t  throttle_watt_limit_min; // for reverse thrust
+    uint32_t throttle_watt_limit_timer_ms;
+
     AP_SpdHgtControl::FlightStage flight_stage = AP_SpdHgtControl::FLIGHT_NORMAL;
 
     // probability of aircraft is currently in flight. range from 0 to
@@ -617,8 +626,6 @@ private:
     // For example in a change altitude command, it is the altitude to change to.
     int32_t condition_value;
 
-    // Sometimes there is a second condition required:
-    int32_t condition_value2;
     // A starting value used to check the status of a conditional command.
     // For example in a delay command the condition_start records that start time for the delay
     uint32_t condition_start;
@@ -700,7 +707,7 @@ private:
 #endif
 
     // Arming/Disarming mangement class
-    AP_Arming_Plane arming {ahrs, barometer, compass, home_is_set };
+    AP_Arming_Plane arming {ahrs, barometer, compass, battery, home_is_set };
 
     AP_Param param_loader {var_info};
 
@@ -745,7 +752,6 @@ private:
     void send_rpm(mavlink_channel_t chan);
     void send_rangefinder(mavlink_channel_t chan);
     void send_current_waypoint(mavlink_channel_t chan);
-    void send_statustext(mavlink_channel_t chan);
     bool telemetry_delayed(mavlink_channel_t chan);
     void gcs_send_message(enum ap_message id);
     void gcs_send_mission_item_reached_message(uint16_t mission_index);
@@ -822,6 +828,7 @@ private:
     bool verify_vtol_land(const AP_Mission::Mission_Command &cmd);
     void do_loiter_at_location();
     void do_take_picture();
+    bool verify_loiter_heading(bool init);
     void log_picture();
     void exit_mission_callback();
     void update_commands(void);
@@ -915,7 +922,7 @@ private:
     void servo_write(uint8_t ch, uint16_t pwm);
     bool should_log(uint32_t mask);
     void frsky_telemetry_send(void);
-    uint8_t throttle_percentage(void);
+    int8_t throttle_percentage(void);
     void change_arm_state(void);
     bool disarm_motors(void);
     bool arm_motors(AP_Arming::ArmingMethod method);
@@ -952,6 +959,7 @@ private:
     void stabilize();
     void set_servos_idle(void);
     void set_servos();
+    bool allow_reverse_thrust(void);
     void update_aux();
     void update_is_flying_5Hz(void);
     void crash_detection_update(void);

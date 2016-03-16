@@ -10,9 +10,7 @@ sys.path.insert(0, 'Tools/ardupilotwaf/')
 import ardupilotwaf
 import boards
 
-from waflib import ConfigSet, Utils
-from waflib.Build import BuildContext
-import waflib.Context
+from waflib import Build, ConfigSet, Context, Utils
 
 # TODO: implement a command 'waf help' that shows the basic tasks a
 # developer might want to do: e.g. how to configure a board, compile a
@@ -35,26 +33,41 @@ def init(ctx):
         return
 
     # define the variant build commands according to the board
-    for c in waflib.Context.classes:
-        if not issubclass(c, BuildContext):
+    for c in Context.classes:
+        if not issubclass(c, Build.BuildContext):
             continue
         c.variant = env.BOARD
 
 def options(opt):
-    opt.load('ardupilotwaf')
-    boards_names = boards.get_boards_names()
-
     opt.load('compiler_cxx compiler_c waf_unit_test python')
-    opt.add_option('--board',
+
+    opt.ap_groups = {
+        'configure': opt.add_option_group('Ardupilot configure options'),
+        'build': opt.add_option_group('Ardupilot build options'),
+        'check': opt.add_option_group('Ardupilot check options'),
+    }
+
+    opt.load('ardupilotwaf')
+
+    g = opt.ap_groups['configure']
+    boards_names = boards.get_boards_names()
+    g.add_option('--board',
                    action='store',
                    choices=boards_names,
                    default='sitl',
                    help='Target board to build, choices are %s' % boards_names)
 
-    g = opt.add_option_group('Check options')
-    g.add_option('--check-verbose',
+    g.add_option('--no-submodule-update',
+                 dest='submodule_update',
+                 action='store_false',
+                 default=True,
+                 help='Don\'t update git submodules. Useful for building ' +
+                      'with submodules at specific revisions.')
+
+    g.add_option('--enable-benchmarks',
                  action='store_true',
-                 help='Output all test programs')
+                 default=False,
+                 help='Enable benchmarks')
 
 def configure(cfg):
     cfg.env.BOARD = cfg.options.board
@@ -63,26 +76,14 @@ def configure(cfg):
 
     cfg.msg('Setting board to', cfg.options.board)
     cfg.env.BOARD = cfg.options.board
-    board_dict = boards.BOARDS[cfg.env.BOARD].get_merged_dict()
+    boards.get_board(cfg.env.BOARD).configure(cfg)
 
-    # Always prepend so that arguments passed in the command line get
-    # the priority.
-    for k in board_dict:
-        val = board_dict[k]
-        # Dictionaries (like 'DEFINES') are converted to lists to
-        # conform to waf conventions.
-        if isinstance(val, dict):
-            for item in val.items():
-                cfg.env.prepend_value(k, '%s=%s' % item)
-        else:
-            cfg.env.prepend_value(k, val)
-
-    cfg.load('toolchain')
-    cfg.load('compiler_cxx compiler_c')
     cfg.load('clang_compilation_database')
     cfg.load('waf_unit_test')
     cfg.load('mavgen')
-    cfg.load('gbenchmark')
+    cfg.load('git_submodule')
+    if cfg.options.enable_benchmarks:
+        cfg.load('gbenchmark')
     cfg.load('gtest')
     cfg.load('static_linking')
 
@@ -98,6 +99,8 @@ def configure(cfg):
     else:
         cfg.end_msg('disabled', color='YELLOW')
 
+    cfg.env.append_value('GIT_SUBMODULES', 'mavlink')
+
     cfg.env.prepend_value('INCLUDES', [
         cfg.srcnode.abspath() + '/libraries/',
     ])
@@ -108,9 +111,17 @@ def configure(cfg):
         'SKETCHBOOK="' + cfg.srcnode.abspath() + '"',
     ])
 
+    if cfg.options.submodule_update:
+        cfg.env.SUBMODULE_UPDATE = True
+
 def collect_dirs_to_recurse(bld, globs, **kw):
     dirs = []
     globs = Utils.to_list(globs)
+
+    if bld.bldnode.is_child_of(bld.srcnode):
+        kw['excl'] = Utils.to_list(kw.get('excl', []))
+        kw['excl'].append(bld.bldnode.path_from(bld.srcnode))
+
     for g in globs:
         for d in bld.srcnode.ant_glob(g + '/wscript', **kw):
             dirs.append(d.parent.relpath())
@@ -119,15 +130,18 @@ def collect_dirs_to_recurse(bld, globs, **kw):
 def list_boards(ctx):
     print(*boards.get_boards_names())
 
-def build(bld):
-    bld.load('ardupilotwaf')
-    bld.load('gtest')
-
+def _build_cmd_tweaks(bld):
     if bld.cmd == 'check-all':
         bld.options.all_tests = True
         bld.cmd = 'check'
 
-    #generate mavlink headers
+    if bld.cmd == 'check':
+        bld.options.clear_failed_tests = True
+        if not bld.env.HAS_GTEST:
+            bld.fatal('check: gtest library is required')
+        bld.add_post_fun(ardupilotwaf.test_summary)
+
+def _build_dynamic_sources(bld):
     bld(
         features='mavgen',
         source='modules/mavlink/message_definitions/v1.0/ardupilotmega.xml',
@@ -141,6 +155,7 @@ def build(bld):
         ],
     )
 
+def _build_common_taskgens(bld):
     # NOTE: Static library with vehicle set to UNKNOWN, shared by all
     # the tools and examples. This is the first step until the
     # dependency on the vehicles is reduced. Later we may consider
@@ -151,45 +166,76 @@ def build(bld):
         libraries=bld.ap_get_all_libraries(),
         use='mavlink',
     )
-    # TODO: Currently each vehicle also generate its own copy of the
-    # libraries. Fix this, or at least reduce the amount of
-    # vehicle-dependent libraries.
-    vehicles = collect_dirs_to_recurse(bld, '*')
+
+    bld.libgtest()
+
+    if bld.env.HAS_GBENCHMARK:
+        bld.libbenchmark()
+
+def _build_recursion(bld):
+    common_dirs_patterns = [
+        # TODO: Currently each vehicle also generate its own copy of the
+        # libraries. Fix this, or at least reduce the amount of
+        # vehicle-dependent libraries.
+        '*',
+        'Tools/*',
+        'libraries/*/examples/*',
+        '**/tests',
+        '**/benchmarks',
+    ]
+
+    common_dirs_excl = [
+        'modules',
+        'libraries/AP_HAL_*',
+        'libraries/SITL',
+    ]
+
+    hal_dirs_patterns = [
+        'libraries/%s/**/tests',
+        'libraries/%s/**/benchmarks',
+        'libraries/%s/examples/*',
+    ]
+
+    dirs_to_recurse = collect_dirs_to_recurse(
+        bld,
+        common_dirs_patterns,
+        excl=common_dirs_excl,
+    )
+
+    for p in hal_dirs_patterns:
+        dirs_to_recurse += collect_dirs_to_recurse(
+            bld,
+            [p % l for l in bld.env.AP_LIBRARIES],
+        )
 
     # NOTE: we need to sort to ensure the repeated sources get the
     # same index, and random ordering of the filesystem doesn't cause
     # recompilation.
-    vehicles.sort()
+    dirs_to_recurse.sort()
 
-    tools = collect_dirs_to_recurse(bld, 'Tools/*')
-    examples = collect_dirs_to_recurse(bld,
-                                       'libraries/*/examples/*',
-                                       excl='libraries/AP_HAL_* libraries/SITL')
-
-    tests = collect_dirs_to_recurse(bld,
-                                    '**/tests',
-                                    excl='modules Tools libraries/AP_HAL_* libraries/SITL')
-    board_tests = ['libraries/%s/**/tests' % l for l in bld.env.AP_LIBRARIES]
-    tests.extend(collect_dirs_to_recurse(bld, board_tests))
-
-    benchmarks = collect_dirs_to_recurse(bld,
-                                         '**/benchmarks',
-                                         excl='modules Tools libraries/AP_HAL_* libraries/SITL')
-    board_benchmarks = ['libraries/%s/**/benchmarks' % l for l in bld.env.AP_LIBRARIES]
-    benchmarks.extend(collect_dirs_to_recurse(bld, board_benchmarks))
-
-    hal_examples = []
-    for l in bld.env.AP_LIBRARIES:
-        hal_examples.extend(collect_dirs_to_recurse(bld, 'libraries/' + l + '/examples/*'))
-
-    for d in vehicles + tools + examples + hal_examples + tests + benchmarks:
+    for d in dirs_to_recurse:
         bld.recurse(d)
 
-    if bld.cmd == 'check':
-        bld.options.clear_failed_tests = True
-        if not bld.env.HAS_GTEST:
-            bld.fatal('check: gtest library is required')
-        bld.add_post_fun(ardupilotwaf.test_summary)
+def build(bld):
+    bld.post_mode = Build.POST_LAZY
+
+    bld.load('ardupilotwaf')
+
+    _build_cmd_tweaks(bld)
+
+    if bld.env.SUBMODULE_UPDATE:
+        bld.add_group('git_submodules')
+        for name in bld.env.GIT_SUBMODULES:
+            bld.git_submodule(name)
+
+    bld.add_group('dynamic_sources')
+    _build_dynamic_sources(bld)
+
+    bld.add_group('build')
+    boards.get_board(bld.env.BOARD).build(bld)
+    _build_common_taskgens(bld)
+
+    _build_recursion(bld)
 
 ardupilotwaf.build_command('check',
     program_group_list='all',

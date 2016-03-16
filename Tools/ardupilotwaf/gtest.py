@@ -5,7 +5,22 @@
 gtest is a Waf tool for test builds in Ardupilot
 """
 
+from waflib import Utils
+from waflib.Configure import conf
+
+import boards
+
 def configure(cfg):
+    board = boards.get_board(cfg.env.BOARD)
+    if isinstance(board, boards.px4):
+        # toolchain is currently broken for gtest
+        cfg.msg(
+            'Gtest',
+            'PX4 boards currently don\'t support compiling gtest',
+            color='YELLOW',
+        )
+        return
+
     cfg.env.HAS_GTEST = False
 
     if cfg.env.STATIC_LINKING:
@@ -18,20 +33,17 @@ def configure(cfg):
         )
         return
 
-    cfg.start_msg('Checking for gtest submodule')
-    readme = cfg.srcnode.find_resource('modules/gtest/README')
-    if not readme:
-        cfg.end_msg('not initialized', color='YELLOW')
-        return
-    cfg.end_msg('yes')
-
+    cfg.env.append_value('GIT_SUBMODULES', 'gtest')
     cfg.env.HAS_GTEST = True
 
-def build(bld):
-    bld.stlib(
+@conf
+def libgtest(bld, **kw):
+    kw['cxxflags'] = Utils.to_list(kw.get('cxxflags', [])) + ['-Wno-undef']
+    kw.update(
         source='modules/gtest/src/gtest-all.cc',
         target='gtest/gtest',
         includes='modules/gtest/ modules/gtest/include',
         export_includes='modules/gtest/include',
         name='GTEST',
     )
+    return bld.stlib(**kw)

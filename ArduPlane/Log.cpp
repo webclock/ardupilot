@@ -164,10 +164,17 @@ void Plane::Log_Write_Attitude(void)
     targets.z = 0;          //Plane does not have the concept of navyaw. This is a placeholder.
 
     DataFlash.Log_Write_Attitude(ahrs, targets);
-    DataFlash.Log_Write_PID(LOG_PIDR_MSG, rollController.get_pid_info());
-    DataFlash.Log_Write_PID(LOG_PIDP_MSG, pitchController.get_pid_info());
-    DataFlash.Log_Write_PID(LOG_PIDY_MSG, yawController.get_pid_info());
-    DataFlash.Log_Write_PID(LOG_PIDS_MSG, steerController.get_pid_info());
+    if (quadplane.in_vtol_mode()) {
+        DataFlash.Log_Write_PID(LOG_PIDR_MSG, quadplane.pid_rate_roll.get_pid_info() );
+        DataFlash.Log_Write_PID(LOG_PIDP_MSG, quadplane.pid_rate_pitch.get_pid_info() );
+        DataFlash.Log_Write_PID(LOG_PIDY_MSG, quadplane.pid_rate_yaw.get_pid_info() );
+        DataFlash.Log_Write_PID(LOG_PIDA_MSG, quadplane.pid_accel_z.get_pid_info() );
+    } else {
+        DataFlash.Log_Write_PID(LOG_PIDR_MSG, rollController.get_pid_info());
+        DataFlash.Log_Write_PID(LOG_PIDP_MSG, pitchController.get_pid_info());
+        DataFlash.Log_Write_PID(LOG_PIDY_MSG, yawController.get_pid_info());
+        DataFlash.Log_Write_PID(LOG_PIDS_MSG, steerController.get_pid_info());
+    }
 
 #if AP_AHRS_NAVEKF_AVAILABLE
  #if OPTFLOW == ENABLED
@@ -242,13 +249,12 @@ struct PACKED log_Control_Tuning {
     int16_t pitch;
     int16_t throttle_out;
     int16_t rudder_out;
-    float   accel_y;
+    int16_t throttle_dem;
 };
 
 // Write a control tuning packet. Total length : 22 bytes
 void Plane::Log_Write_Control_Tuning()
 {
-    Vector3f accel = ins.get_accel();
     struct log_Control_Tuning pkt = {
         LOG_PACKET_HEADER_INIT(LOG_CTUN_MSG),
         time_us         : AP_HAL::micros64(),
@@ -258,7 +264,7 @@ void Plane::Log_Write_Control_Tuning()
         pitch           : (int16_t)ahrs.pitch_sensor,
         throttle_out    : (int16_t)channel_throttle->servo_out,
         rudder_out      : (int16_t)channel_rudder->servo_out,
-        accel_y         : accel.y
+        throttle_dem    : (int16_t)SpdHgt_Controller->get_throttle_demand()
     };
     DataFlash.WriteBlock(&pkt, sizeof(pkt));
 }
@@ -323,10 +329,10 @@ void Plane::Log_Write_Status()
         ,is_flying   : is_flying()
         ,is_flying_probability : isFlyingProbability
         ,armed       : hal.util->get_soft_armed()
-        ,safety      : hal.util->safety_switch_state()
+        ,safety      : static_cast<uint8_t>(hal.util->safety_switch_state())
         ,is_crashed  : crash_state.is_crashed
         ,is_still    : plane.ins.is_still()
-        ,stage       : flight_stage
+        ,stage       : static_cast<uint8_t>(flight_stage)
         ,impact      : crash_state.impact_detected
         };
 
@@ -340,7 +346,7 @@ struct PACKED log_Sonar {
     float voltage;
     float baro_alt;
     float groundspeed;
-    uint8_t throttle;
+    int8_t throttle;
     uint8_t count;
     float correction;
 };
@@ -361,7 +367,7 @@ void Plane::Log_Write_Sonar()
         voltage     : rangefinder.voltage_mv()*0.001f,
         baro_alt    : barometer.get_altitude(),
         groundspeed : gps.ground_speed(),
-        throttle    : (uint8_t)(100 * channel_throttle->norm_output()),
+        throttle    : (int8_t)(100 * channel_throttle->norm_output()),
         count       : rangefinder_state.in_range_count,
         correction  : rangefinder_state.correction
     };
@@ -465,7 +471,7 @@ void Plane::Log_Write_Home_And_Origin()
 #if AP_AHRS_NAVEKF_AVAILABLE
     // log ekf origin if set
     Location ekf_orig;
-    if (ahrs.get_NavEKF_const().getOriginLLH(ekf_orig)) {
+    if (ahrs.get_origin(ekf_orig)) {
         DataFlash.Log_Write_Origin(LogOriginType::ekf_origin, ekf_orig);
     }
 #endif
@@ -483,11 +489,11 @@ static const struct LogStructure log_structure[] = {
     { LOG_STARTUP_MSG, sizeof(log_Startup),         
       "STRT", "QBH",         "TimeUS,SType,CTot" },
     { LOG_CTUN_MSG, sizeof(log_Control_Tuning),     
-      "CTUN", "Qcccchhf",    "TimeUS,NavRoll,Roll,NavPitch,Pitch,ThrOut,RdrOut,AccY" },
+      "CTUN", "Qcccchhh",    "TimeUS,NavRoll,Roll,NavPitch,Pitch,ThrOut,RdrOut,ThrDem" },
     { LOG_NTUN_MSG, sizeof(log_Nav_Tuning),         
       "NTUN", "QCfccccfIf",  "TimeUS,Yaw,WpDist,TargBrg,NavBrg,AltErr,Arspd,Alt,GSpdCM,XT" },
     { LOG_SONAR_MSG, sizeof(log_Sonar),             
-      "SONR", "QHfffBBf",   "TimeUS,DistCM,Volt,BaroAlt,GSpd,Thr,Cnt,Corr" },
+      "SONR", "QHfffbBf",   "TimeUS,DistCM,Volt,BaroAlt,GSpd,Thr,Cnt,Corr" },
     { LOG_ARM_DISARM_MSG, sizeof(log_Arm_Disarm),
       "ARM", "QBH", "TimeUS,ArmState,ArmChecks" },
     { LOG_ATRP_MSG, sizeof(AP_AutoTune::log_ATRP),

@@ -27,11 +27,7 @@
 /// DO NOT EDIT THIS INCLUDE - if you want to make a local change, make that
 /// change in your local copy of APM_Config.h.
 ///
-#ifdef USE_CMAKE_APM_CONFIG
- #include "APM_Config_cmake.h"  // <== Prefer cmake config if it exists
-#else
- #include "APM_Config.h" // <== THIS INCLUDE, DO NOT EDIT IT. EVER.
-#endif
+#include "APM_Config.h"
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -311,7 +307,7 @@
 //////////////////////////////////////////////////////////////////////////////
 // Precision Landing with companion computer or IRLock sensor
 #ifndef PRECISION_LANDING
- # define PRECISION_LANDING DISABLED
+ # define PRECISION_LANDING ENABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -734,10 +730,10 @@
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
-// AP_Limits Defaults
+// Fence, Rally and Terrain defaults
 //
 
-// Enable/disable AP_Limits
+// Enable/disable Fence
 #ifndef AC_FENCE
  #define AC_FENCE ENABLED
 #endif

@@ -13,6 +13,7 @@ void Copter::gcs_send_heartbeat(void)
 void Copter::gcs_send_deferred(void)
 {
     gcs_send_message(MSG_RETRY_DEFERRED);
+    GCS_MAVLINK::service_statustext();
 }
 
 /*
@@ -491,16 +492,6 @@ void Copter::send_pid_tuning(mavlink_channel_t chan)
     }
 }
 
-
-void NOINLINE Copter::send_statustext(mavlink_channel_t chan)
-{
-    mavlink_statustext_t *s = &gcs[chan-MAVLINK_COMM_0].pending_status;
-    mavlink_msg_statustext_send(
-        chan,
-        s->severity,
-        s->text);
-}
-
 // are we still delaying telemetry to try to avoid Xbee bricking?
 bool Copter::telemetry_delayed(mavlink_channel_t chan)
 {
@@ -663,9 +654,8 @@ bool GCS_MAVLINK::try_send_message(enum ap_message id)
         break;
 
     case MSG_STATUSTEXT:
-        CHECK_PAYLOAD_SIZE(STATUSTEXT);
-        copter.send_statustext(chan);
-        break;
+        // depreciated, use GCS_MAVLINK::send_statustext*
+        return false;
 
     case MSG_LIMITS_STATUS:
 #if AC_FENCE == ENABLED
@@ -1149,6 +1139,43 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
 
         // a RC override message is considered to be a 'heartbeat' from the ground station for failsafe purposes
         copter.failsafe.last_heartbeat_ms = AP_HAL::millis();
+        break;
+    }
+
+    case MAVLINK_MSG_ID_COMMAND_INT:
+    {
+        // decode packet
+        mavlink_command_int_t packet;
+        mavlink_msg_command_int_decode(msg, &packet);
+        switch(packet.command)
+        {
+            case MAV_CMD_DO_SET_ROI: {
+                // param1 : /* Region of interest mode (not used)*/
+                // param2 : /* MISSION index/ target ID (not used)*/
+                // param3 : /* ROI index (not used)*/
+                // param4 : /* empty */
+                // x : lat
+                // y : lon
+                // z : alt
+                // sanity check location
+                if (labs(packet.x) >= 900000000l || labs(packet.y) >= 1800000000l) {
+                    break;
+                }
+                Location roi_loc;
+                roi_loc.lat = packet.x;
+                roi_loc.lng = packet.y;
+                roi_loc.alt = (int32_t)(packet.z * 100.0f);
+                copter.set_auto_yaw_roi(roi_loc);
+                result = MAV_RESULT_ACCEPTED;
+                break;
+            }
+            default:
+                result = MAV_RESULT_UNSUPPORTED;
+                break;
+        }
+
+        // send ACK or NAK
+        mavlink_msg_command_ack_send_buf(msg, chan, packet.command, result);
         break;
     }
 
@@ -1690,6 +1717,7 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
 
         // check for supported coordinate frames
         if (packet.coordinate_frame != MAV_FRAME_GLOBAL_INT &&
+            packet.coordinate_frame != MAV_FRAME_GLOBAL_RELATIVE_ALT && // solo shot manager incorrectly sends RELATIVE_ALT instead of RELATIVE_ALT_INT
             packet.coordinate_frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT &&
             packet.coordinate_frame != MAV_FRAME_GLOBAL_TERRAIN_ALT_INT) {
             break;
@@ -1714,6 +1742,7 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
             loc.lng = packet.lon_int;
             loc.alt = packet.alt*100;
             switch (packet.coordinate_frame) {
+                case MAV_FRAME_GLOBAL_RELATIVE_ALT: // solo shot manager incorrectly sends RELATIVE_ALT instead of RELATIVE_ALT_INT
                 case MAV_FRAME_GLOBAL_RELATIVE_ALT_INT:
                     loc.flags.relative_alt = true;
                     loc.flags.terrain_alt = false;
@@ -2051,11 +2080,7 @@ void Copter::gcs_check_input(void)
 
 void Copter::gcs_send_text(MAV_SEVERITY severity, const char *str)
 {
-    for (uint8_t i=0; i<num_gcs; i++) {
-        if (gcs[i].initialised) {
-            gcs[i].send_text(severity, str);
-        }
-    }
+    GCS_MAVLINK::send_statustext(severity, 0xFF, str);
 }
 
 /*
@@ -2065,17 +2090,10 @@ void Copter::gcs_send_text(MAV_SEVERITY severity, const char *str)
  */
 void Copter::gcs_send_text_fmt(MAV_SEVERITY severity, const char *fmt, ...)
 {
+    char str[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN] {};
     va_list arg_list;
-    gcs[0].pending_status.severity = (uint8_t)severity;
     va_start(arg_list, fmt);
-    hal.util->vsnprintf((char *)gcs[0].pending_status.text,
-            sizeof(gcs[0].pending_status.text), fmt, arg_list);
     va_end(arg_list);
-    gcs[0].send_message(MSG_STATUSTEXT);
-    for (uint8_t i=1; i<num_gcs; i++) {
-        if (gcs[i].initialised) {
-            gcs[i].pending_status = gcs[0].pending_status;
-            gcs[i].send_message(MSG_STATUSTEXT);
-        }
-    }
+    hal.util->vsnprintf((char *)str, sizeof(str), fmt, arg_list);
+    GCS_MAVLINK::send_statustext(severity, 0xFF, str);
 }

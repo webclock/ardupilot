@@ -13,7 +13,7 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
 
     // @Group: M_
     // @Path: ../libraries/AP_Motors/AP_MotorsMulticopter.cpp
-    AP_SUBGROUPPTR(motors, "M_", 2, QuadPlane, AP_MotorsQuad),
+    AP_SUBGROUPPTR(motors, "M_", 2, QuadPlane, AP_MotorsMulticopter),
 
     // @Param: RT_RLL_P
     // @DisplayName: Roll axis rate controller P gain
@@ -320,7 +320,7 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
     // @User: Standard
     // @Range: 300 700
     // @Units: Percent*10
-    // @Increment: 1
+    // @Increment: 10
     AP_GROUPINFO("THR_MID", 28, QuadPlane, throttle_mid, 500),
 
     // @Param: TRAN_PIT_MAX
@@ -331,6 +331,20 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
     // @Units: Degrees
     // @Increment: 1
     AP_GROUPINFO("TRAN_PIT_MAX", 29, QuadPlane, transition_pitch_max, 3),
+
+    // @Param: FRAME_CLASS
+    // @DisplayName: Frame Class
+    // @Description: Controls major frame class for multicopter component
+    // @Values: 0:Quad, 1:Hexa, 2:Octa, 3:OctaQuad
+    // @User: Standard
+    AP_GROUPINFO("FRAME_CLASS", 30, QuadPlane, frame_class, 0),
+
+    // @Param: FRAME_TYPE
+    // @DisplayName: Frame Type (+, X or V)
+    // @Description: Controls motor mixing for multicopter component
+    // @Values: 0:Plus, 1:X, 2:V, 3:H, 4:V-Tail, 5:A-Tail, 10:Y6B
+    // @User: Standard
+    AP_GROUPINFO("FRAME_TYPE", 31, QuadPlane, frame_type, 1),
     
     AP_GROUPEND
 };
@@ -340,6 +354,16 @@ QuadPlane::QuadPlane(AP_AHRS_NavEKF &_ahrs) :
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
+
+
+// setup default motors for the frame class
+void QuadPlane::setup_default_channels(uint8_t num_motors)
+{
+    for (uint8_t i=0; i<num_motors; i++) {
+        RC_Channel_aux::set_aux_channel_default((RC_Channel_aux::Aux_servo_function_t)(RC_Channel_aux::k_motor1+i), CH_5+i);
+    }
+}
+    
 
 bool QuadPlane::setup(void)
 {
@@ -356,23 +380,38 @@ bool QuadPlane::setup(void)
         GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "Not enough memory for quadplane");
         goto failed;
     }
-    
-    // setup default motors for X frame
-    RC_Channel_aux::set_aux_channel_default(RC_Channel_aux::k_motor1, CH_5);
-    RC_Channel_aux::set_aux_channel_default(RC_Channel_aux::k_motor2, CH_6);
-    RC_Channel_aux::set_aux_channel_default(RC_Channel_aux::k_motor3, CH_7);
-    RC_Channel_aux::set_aux_channel_default(RC_Channel_aux::k_motor4, CH_8);
-    
+
     /*
       dynamically allocate the key objects for quadplane. This ensures
       that the objects don't affect the vehicle unless enabled and
       also saves memory when not in use
      */
-    motors = new AP_MotorsQuad(plane.ins.get_sample_rate());
+    switch ((enum frame_class)frame_class.get()) {
+    case FRAME_CLASS_QUAD:
+        setup_default_channels(4);
+        motors = new AP_MotorsQuad(plane.ins.get_sample_rate());
+        break;
+    case FRAME_CLASS_HEXA:
+        setup_default_channels(6);
+        motors = new AP_MotorsHexa(plane.ins.get_sample_rate());
+        break;
+    case FRAME_CLASS_OCTA:
+        setup_default_channels(8);
+        motors = new AP_MotorsOcta(plane.ins.get_sample_rate());
+        break;
+    case FRAME_CLASS_OCTAQUAD:
+        setup_default_channels(8);
+         motors = new AP_MotorsOctaQuad(plane.ins.get_sample_rate());
+        break;
+    default:
+        hal.console->printf("Unknown frame class %u\n", (unsigned)frame_class.get());
+        goto failed;
+    }
     if (!motors) {
         hal.console->printf("Unable to allocate motors\n");
         goto failed;
     }
+    
     AP_Param::load_object_from_eeprom(motors, motors->var_info);
     attitude_control = new AC_AttitudeControl_Multi(ahrs, aparm, *motors,
                                                     p_stabilize_roll, p_stabilize_pitch, p_stabilize_yaw,
@@ -397,7 +436,7 @@ bool QuadPlane::setup(void)
     }
     AP_Param::load_object_from_eeprom(wp_nav, wp_nav->var_info);
 
-    motors->set_frame_orientation(AP_MOTORS_X_FRAME);
+    motors->set_frame_orientation(frame_type);
     motors->Init();
     motors->set_throttle_range(0, thr_min_pwm, thr_max_pwm);
     motors->set_hover_throttle(throttle_mid);
@@ -534,6 +573,14 @@ void QuadPlane::init_loiter(void)
     init_throttle_wait();
 }
 
+void QuadPlane::init_land(void)
+{
+    init_loiter();
+    throttle_wait = false;
+    land_state = QLAND_DESCEND;
+    motors_lower_limit_start_ms = 0;
+}
+
 
 // helper for is_flying()
 bool QuadPlane::is_flying(void)
@@ -609,8 +656,23 @@ void QuadPlane::control_loiter()
     plane.nav_roll_cd = wp_nav->get_roll();
     plane.nav_pitch_cd = wp_nav->get_pitch();
 
-    // update altitude target and call position controller
-    pos_control->set_alt_target_from_climb_rate_ff(get_pilot_desired_climb_rate_cms(), plane.G_Dt, false);
+    if (plane.control_mode == QLAND) {
+        if (land_state == QLAND_DESCEND) {
+            if (plane.g.rangefinder_landing && plane.rangefinder_state.in_range) {
+                if (plane.rangefinder_state.height_estimate < land_final_alt) {
+                    land_state = QLAND_FINAL;
+                }
+            } else if (plane.adjusted_relative_altitude_cm() < land_final_alt*100) {
+                land_state = QLAND_FINAL;                
+            }
+        }
+        float descent_rate = (land_state == QLAND_FINAL)?land_speed_cms:wp_nav->get_speed_down();
+        pos_control->set_alt_target_from_climb_rate(-descent_rate, plane.G_Dt, true);
+        check_land_complete();
+    } else {
+        // update altitude target and call position controller
+        pos_control->set_alt_target_from_climb_rate_ff(get_pilot_desired_climb_rate_cms(), plane.G_Dt, false);
+    }
     pos_control->update_z_controller();
 }
 
@@ -770,7 +832,7 @@ void QuadPlane::update_transition(void)
         if (have_airspeed && aspeed > plane.aparm.airspeed_min && !assisted_flight) {
             transition_start_ms = millis();
             transition_state = TRANSITION_TIMER;
-            GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "Transition airspeed reached %.1f", aspeed);
+            GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "Transition airspeed reached %.1f", (double)aspeed);
         }
         assisted_flight = true;
         hold_hover(assist_climb_rate_cms());
@@ -813,12 +875,12 @@ void QuadPlane::update(void)
         return;
     }
 
-    bool quad_mode = (plane.control_mode == QSTABILIZE ||
-                      plane.control_mode == QHOVER ||
-                      plane.control_mode == QLOITER ||
-                      in_vtol_auto());
+    if (motor_test.running) {
+        motor_test_output();
+        return;
+    }
     
-    if (!quad_mode) {
+    if (!in_vtol_mode()) {
         update_transition();
     } else {
         assisted_flight = false;
@@ -863,8 +925,8 @@ void QuadPlane::control_run(void)
         control_hover();
         break;
     case QLOITER:
+    case QLAND:
         control_loiter();
-        break;
     default:
         break;
     }
@@ -895,6 +957,9 @@ bool QuadPlane::init_mode(void)
         break;
     case QLOITER:
         init_loiter();
+        break;
+    case QLAND:
+        init_land();
         break;
     default:
         break;
@@ -952,6 +1017,18 @@ bool QuadPlane::in_vtol_auto(void)
     default:
         return false;
     }
+}
+
+/*
+  are we in a VTOL mode?
+ */
+bool QuadPlane::in_vtol_mode(void)
+{
+    return (plane.control_mode == QSTABILIZE ||
+            plane.control_mode == QHOVER ||
+            plane.control_mode == QLOITER ||
+            plane.control_mode == QLAND ||
+            in_vtol_auto());
 }
 
 /*
@@ -1174,6 +1251,17 @@ bool QuadPlane::verify_vtol_takeoff(const AP_Mission::Mission_Command &cmd)
     return true;
 }
 
+void QuadPlane::check_land_complete(void)
+{
+    if (land_state == QLAND_FINAL &&
+        (motors_lower_limit_start_ms != 0 &&
+         millis() - motors_lower_limit_start_ms > 5000)) {
+        plane.disarm_motors();
+        land_state = QLAND_COMPLETE;
+        plane.gcs_send_text(MAV_SEVERITY_INFO,"Land complete");
+    }
+}
+
 /*
   check if a VTOL landing has completed
  */
@@ -1201,12 +1289,6 @@ bool QuadPlane::verify_vtol_land(const AP_Mission::Mission_Command &cmd)
         plane.gcs_send_text(MAV_SEVERITY_INFO,"Land final started");
     }
 
-    if (land_state == QLAND_FINAL &&
-        (motors_lower_limit_start_ms != 0 &&
-         millis() - motors_lower_limit_start_ms > 5000)) {
-        plane.disarm_motors();
-        land_state = QLAND_COMPLETE;
-        plane.gcs_send_text(MAV_SEVERITY_INFO,"Land complete");
-    }
+    check_land_complete();
     return false;
 }

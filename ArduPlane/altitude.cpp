@@ -34,7 +34,8 @@ void Plane::adjust_altitude_target()
         // in land final TECS uses TECS_LAND_SINK as a target sink
         // rate, and ignores the target altitude
         set_target_altitude_location(next_WP_loc);
-    } else if (flight_stage == AP_SpdHgtControl::FLIGHT_LAND_APPROACH) {
+    } else if (flight_stage == AP_SpdHgtControl::FLIGHT_LAND_APPROACH ||
+            flight_stage == AP_SpdHgtControl::FLIGHT_LAND_PREFLARE) {
         setup_landing_glide_slope();
     } else if (nav_controller->reached_loiter_target()) {
         // once we reach a loiter target then lock to the final
@@ -357,7 +358,8 @@ void Plane::set_offset_altitude_location(const Location &loc)
     }
 #endif
 
-    if (flight_stage != AP_SpdHgtControl::FLIGHT_LAND_APPROACH &&
+    if (flight_stage != AP_SpdHgtControl::FLIGHT_LAND_PREFLARE &&
+        flight_stage != AP_SpdHgtControl::FLIGHT_LAND_APPROACH &&
         flight_stage != AP_SpdHgtControl::FLIGHT_LAND_FINAL) {
         // if we are within GLIDE_SLOPE_MIN meters of the target altitude
         // then reset the offset to not use a glide slope. This allows for
@@ -536,6 +538,7 @@ float Plane::rangefinder_correction(void)
     bool using_rangefinder = (g.rangefinder_landing &&
                               control_mode == AUTO && 
                               (flight_stage == AP_SpdHgtControl::FLIGHT_LAND_APPROACH ||
+                               flight_stage == AP_SpdHgtControl::FLIGHT_LAND_PREFLARE ||
                                flight_stage == AP_SpdHgtControl::FLIGHT_LAND_FINAL));
     if (!using_rangefinder) {
         return 0;
@@ -562,7 +565,7 @@ void Plane::rangefinder_height_update(void)
         }
         // correct the range for attitude (multiply by DCM.c.z, which
         // is cos(roll)*cos(pitch))
-        height_estimate = distance * ahrs.get_rotation_body_to_ned().c.z;
+        rangefinder_state.height_estimate = distance * ahrs.get_rotation_body_to_ned().c.z;
 
         // we consider ourselves to be fully in range when we have 10
         // good samples (0.2s) that are different by 5% of the maximum
@@ -576,10 +579,13 @@ void Plane::rangefinder_height_update(void)
         } else {
             rangefinder_state.in_range = true;
             if (!rangefinder_state.in_use &&
-                flight_stage == AP_SpdHgtControl::FLIGHT_LAND_APPROACH &&
+                (flight_stage == AP_SpdHgtControl::FLIGHT_LAND_APPROACH ||
+                 flight_stage == AP_SpdHgtControl::FLIGHT_LAND_PREFLARE ||
+                 flight_stage == AP_SpdHgtControl::FLIGHT_LAND_FINAL ||
+                 control_mode == QLAND) &&
                 g.rangefinder_landing) {
                 rangefinder_state.in_use = true;
-                gcs_send_text_fmt(MAV_SEVERITY_INFO, "Rangefinder engaged at %.2fm", (double)height_estimate);
+                gcs_send_text_fmt(MAV_SEVERITY_INFO, "Rangefinder engaged at %.2fm", (double)rangefinder_state.height_estimate);
             }
         }
     } else {

@@ -1,6 +1,5 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-#ifndef Compass_h
-#define Compass_h
+#pragma once
 
 #include <inttypes.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
@@ -83,7 +82,10 @@ public:
     ///
     /// @returns heading in radians
     ///
-    float calculate_heading(const Matrix3f &dcm_matrix) const;
+    float calculate_heading(const Matrix3f &dcm_matrix) const {
+        return calculate_heading(dcm_matrix, get_primary());
+    }
+    float calculate_heading(const Matrix3f &dcm_matrix, uint8_t i) const;
 
     /// Sets offset x/y/z values.
     ///
@@ -417,4 +419,3 @@ private:
 #include "AP_Compass_LSM303D.h"
 #include "AP_Compass_qflight.h"
 #include "AP_Compass_QURT.h"
-#endif

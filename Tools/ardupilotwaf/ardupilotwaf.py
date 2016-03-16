@@ -48,7 +48,6 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'Filter',
     'GCS_MAVLink',
     'RC_Channel',
-    'SITL',
     'StorageManager',
 ]
 
@@ -61,7 +60,6 @@ def _get_legacy_defines(sketch_name):
 
 IGNORED_AP_LIBRARIES = [
     'doc',
-    'AP_Limits',
     'GCS_Console',
 ]
 
@@ -73,6 +71,8 @@ def ap_get_all_libraries(bld):
         if name in IGNORED_AP_LIBRARIES:
             continue
         if name.startswith('AP_HAL'):
+            continue
+        if name == 'SITL':
             continue
         libraries.append(name)
     libraries.extend(['AP_HAL', 'AP_HAL_Empty'])
@@ -102,14 +102,23 @@ def ap_program(bld, program_group='bin',
     if use_legacy_defines:
         kw['defines'].extend(_get_legacy_defines(bld.path.name))
 
-    kw['features'] = common_features(bld) + kw.get('features', [])
+    kw['features'] = kw.get('features', []) + bld.env.AP_PROGRAM_FEATURES
 
     name = os.path.join(program_group, program_name)
-    target = bld.bldnode.find_or_declare(name)
 
-    tg = bld.program(
-        target=target,
+    tg_constructor = bld.program
+    if bld.env.AP_PROGRAM_AS_STLIB:
+        tg_constructor = bld.stlib
+    else:
+        if bld.env.STATIC_LINKING:
+            kw['features'].append('static_linking')
+
+
+    tg = tg_constructor(
+        target='#%s' % name,
         name=name,
+        program_name=program_name,
+        program_group=program_group,
         **kw
     )
     _grouped_programs.setdefault(program_group, []).append(tg)
@@ -130,12 +139,6 @@ def _get_next_idx():
     LAST_IDX += 1
     return LAST_IDX
 
-def common_features(bld):
-    features = []
-    if bld.env.STATIC_LINKING:
-        features.append('static_linking')
-    return features
-
 @conf
 def ap_stlib(bld, **kw):
     if 'name' not in kw:
@@ -155,6 +158,7 @@ def ap_stlib(bld, **kw):
         lib_sources = lib_node.ant_glob(SOURCE_EXTS + UTILITY_SOURCE_EXTS)
         sources.extend(lib_sources)
 
+    kw['features'] = kw.get('features', []) + bld.env.AP_STLIB_FEATURES
     kw['source'] = sources
     kw['target'] = kw['name']
     kw['defines'] = _get_legacy_defines(kw['vehicle'])
@@ -167,7 +171,7 @@ def ap_find_tests(bld, use=[]):
     if not bld.env.HAS_GTEST:
         return
 
-    features = common_features(bld)
+    features = []
     if bld.cmd == 'check':
         features.append('test')
 
@@ -186,6 +190,7 @@ def ap_find_tests(bld, use=[]):
             program_name=f.change_ext('').name,
             program_group='tests',
             use_legacy_defines=False,
+            cxxflags=['-Wno-undef'],
         )
 
 @conf
@@ -198,7 +203,7 @@ def ap_find_benchmarks(bld, use=[]):
     for f in bld.path.ant_glob(incl='*.cpp'):
         ap_program(
             bld,
-            features=common_features(bld) + ['gbenchmark'],
+            features=['gbenchmark'],
             includes=includes,
             source=[f],
             use=use,
@@ -307,7 +312,7 @@ def _select_programs_from_group(bld):
             bld.targets += ',' + tg.name
 
 def options(opt):
-    g = opt.add_option_group('Ardupilot build options')
+    g = opt.ap_groups['build']
     g.add_option('--program-group',
         action='append',
         default=[],
@@ -316,6 +321,24 @@ def options(opt):
              'examples. The special group "all" selects all programs.',
     )
 
+    g.add_option('--upload',
+        action='store_true',
+        help='Upload applicable targets to a connected device. Not all ' +
+             'platforms may support this. Example: `waf copter --upload` ' +
+             'means "build arducopter and upload it to my board".',
+    )
+
+    g = opt.ap_groups['check']
+    g.add_option('--check-verbose',
+                 action='store_true',
+                 help='Output all test programs')
+
+
 def build(bld):
+    global LAST_IDX
+    # FIXME: This is done to prevent same task generators being created with
+    # different idx when build() is called multiple times (e.g. waf bin tests).
+    # Ideally, task generators should be created just once.
+    LAST_IDX = 0
     bld.add_pre_fun(_process_build_command)
     bld.add_pre_fun(_select_programs_from_group)
