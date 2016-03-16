@@ -696,8 +696,11 @@
  # define ALT_HOLD_ACCEL_MAX 250    // if you change this you must also update the duplicate declaration in AC_WPNav.h
 #endif
 
+
+//Lei Deng: 可能是解锁的时间，可以修改后试验
 #ifndef AUTO_DISARMING_DELAY
-# define AUTO_DISARMING_DELAY  10
+//# define AUTO_DISARMING_DELAY  10
+# define AUTO_DISARMING_DELAY  50
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
