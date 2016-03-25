@@ -182,7 +182,53 @@ void Copter::setup()
     // setup initial performance counters
     perf_info_reset();
     fast_loopTimer = AP_HAL::micros();
+
+    //Lei Deng------------------------------------------
+    my_mission_resume_setup();
+    //Lei Deng*********************************************
 }
+
+//Lei Deng---------------------------------------------------
+//
+void Copter::my_mission_resume_setup(void)
+{
+    //wp_rsm_p_cmd is a resume_mission_flag. if it is set to -999, means there is no mission should be resumed.
+
+    g.wp_rsm_x = 47.987654321;
+    g.wp_rsm_p_cmd = 345;
+
+
+    /*if(g.wp_resume_mode == 0 || g.wp_rsm_p_cmd == -999)//Do Nothing.
+        return;
+
+    switch(g.wp_resume_mode)
+    {
+    case 1:
+        resume_mission_POS(g.wp_rsm_x, g.wp_rsm_y, g.wp_rsm_z);
+        break;
+    case 2:
+        resume_mission_previous_WP(g.wp_rsm_p_cmd);
+        break;
+    default:
+        break;
+    }
+    g.wp_rsm_p_cmd = -999; //set resume_mission_flag = false
+
+    gcs_send_text(MAV_SEVERITY_WARNING,"Mission has been re-scheduled");*/
+}
+
+void Copter::resume_mission_POS(float x, float y, float z)
+{
+
+}
+
+void Copter::resume_mission_previous_WP(int previous_cmd)
+{
+
+}
+
+
+//Lei Deng***********************************************************
 
 /*
   if the compass is enabled then try to accumulate a reading

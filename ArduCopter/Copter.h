@@ -985,6 +985,12 @@ private:
     bool verify_command(const AP_Mission::Mission_Command& cmd);
     bool verify_command_callback(const AP_Mission::Mission_Command& cmd);
 
+    //Lei Deng-------------------------------------------------
+    void my_mission_resume_setup();
+    void resume_mission_POS(float x, float y, float z);
+    void resume_mission_previous_WP(int previous_cmd);
+    //Lei Deng-------------------------------------------------
+
     bool do_guided(const AP_Mission::Mission_Command& cmd);
     void do_takeoff(const AP_Mission::Mission_Command& cmd);
     void do_nav_wp(const AP_Mission::Mission_Command& cmd);
