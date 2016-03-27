@@ -229,15 +229,18 @@ void Copter::exit_mode(uint8_t old_control_mode, uint8_t new_control_mode)
     // stop mission when we leave auto mode
     if (old_control_mode == AUTO) {
         if (mission.state() == AP_Mission::MISSION_RUNNING) {
-            //Lei Deng-----------------------------------
-            //Get the position of exit AUTO mode,
-            //and set wp_rsm_p_cmd to previous CMD
-            const Vector3f& curr_pos = inertial_nav.get_position();
-            g.wp_rsm_x = curr_pos.x;
-            g.wp_rsm_y = curr_pos.y;
-            g.wp_rsm_z = curr_pos.z;
-            g.wp_rsm_p_cmd = 10;
-            //Lei Deng-----------------------------------
+            //Lei Deng------------------------------------------------------
+            //Get the position when exiting from AUTO mode,and get curr_pos.
+            if(g.wp_rsm_pre_wp < 0)//save only the first MISSION CHANGE
+            {
+                g.wp_rsm_x = inertial_nav.get_longitude();
+                g.wp_rsm_y = inertial_nav.get_latitude();
+                g.wp_rsm_z = inertial_nav.get_altitude();
+                g.wp_rsm_pre_wp = mission.get_prev_nav_cmd_with_wp_index();
+
+            }
+            //Lei Deng*******************************************************
+
             mission.stop();
         }
 #if MOUNT == ENABLED

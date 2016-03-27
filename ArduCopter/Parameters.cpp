@@ -367,33 +367,34 @@ const AP_Param::Info Copter::var_info[] = {
     // @User: Advanced
     GSCALAR(wp_resume_mode, "WP_RESUME_MODE", WP_RESUME_MODE_DEFAULT),
 
+    // @Param: WP_RSM_PRE_WP
+    // @DisplayName: Previous WayPoint
+    // @Description: The previous waypoint when exit mission
+    // @Values: #wp, -999
+    // @User: Advanced
+    GSCALAR(wp_rsm_pre_wp, "WP_RSM_PRE_WP", WP_RSM_PRE_WP_DEFAULT),
+
     // @Param: WP_RSM_X
     // @DisplayName: WP_RSM_X
-    // @Description: DO NOT CHANGE THIS MANULLY
+    // @Description: Do NOT change manually.
     // @Values:0
     // @User: Advanced
-    GSCALAR(wp_rsm_x, "WP_RSM_X", WP_RSM_X_DEFAULT),
+    GSCALAR(wp_rsm_x, "WP_RSM_X", WP_RSM_POS_DEFAULT),
 
     // @Param: WP_RSM_Y
     // @DisplayName: WP_RSM_Y
-    // @Description: DO NOT CHANGE THIS MANULLY
+    // @Description: Do NOT change manually.
     // @Values:0
     // @User: Advanced
-    GSCALAR(wp_rsm_y, "WP_RSM_Y", WP_RSM_Y_DEFAULT),
+    GSCALAR(wp_rsm_y, "WP_RSM_Y", WP_RSM_POS_DEFAULT),
 
     // @Param: WP_RSM_Z
     // @DisplayName: WP_RSM_Z
-    // @Description: DO NOT CHANGE THIS MANULLY
+    // @Description: Do NOT change manually.
     // @Values:0
     // @User: Advanced
-    GSCALAR(wp_rsm_z, "WP_RSM_Z", WP_RSM_Z_DEFAULT),
+    GSCALAR(wp_rsm_z, "WP_RSM_Z", WP_RSM_POS_DEFAULT),
 
-    // @Param: WP_RSM_P_CMD
-    // @DisplayName: WP_RSM_Previous_CMD
-    // @Description: DO NOT CHANGE THIS MANULLY
-    // @Values:0
-    // @User: Advanced
-    GSCALAR(wp_rsm_p_cmd, "WP_RSM_P_CMD", WP_RSM_P_CMD_DEFAULT),
 
     // @Param: LOG_BITMASK
     // @DisplayName: Log bitmask

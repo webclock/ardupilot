@@ -697,10 +697,8 @@
 #endif
 
 
-//Lei Deng: 可能是解锁的时间，可以修改后试验
 #ifndef AUTO_DISARMING_DELAY
-//# define AUTO_DISARMING_DELAY  10
-# define AUTO_DISARMING_DELAY  50
+# define AUTO_DISARMING_DELAY  10
 #endif
 
 //////////////////////////////////////////////////////////////////////////////

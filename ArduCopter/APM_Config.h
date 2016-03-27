@@ -65,18 +65,12 @@
  # define WP_RESUME_MODE_DEFAULT      2     // default value for my new parameter
 #endif
 
-#ifndef WP_RSM_X_DEFAULT
- # define WP_RSM_X_DEFAULT      0     // default value for my new parameter
+
+#ifndef WP_RSM_PRE_WP_DEFAULT
+ # define WP_RSM_PRE_WP_DEFAULT      -999     // default value for my new parameter
 #endif
 
-#ifndef WP_RSM_Y_DEFAULT
- # define WP_RSM_Y_DEFAULT      0     // default value for my new parameter
+#ifndef WP_RSM_POS_DEFAULT
+ # define WP_RSM_POS_DEFAULT      0     // default value for my new parameter
 #endif
 
-#ifndef WP_RSM_Z_DEFAULT
- # define WP_RSM_Z_DEFAULT      0     // default value for my new parameter
-#endif
-
-#ifndef WP_RSM_P_CMD_DEFAULT
- # define WP_RSM_P_CMD_DEFAULT      -999     // default value for my new parameter
-#endif
