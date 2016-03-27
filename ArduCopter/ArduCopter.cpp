@@ -256,7 +256,7 @@ void Copter::resume_mission_POS(int previous_cmd, float x, float y, float z)
             rsm_cmd.id = MAV_CMD_NAV_WAYPOINT;
             rsm_cmd.content.location.options = 0;
             rsm_cmd.p1 = 0;
-            rsm_cmd.content.location.alt = z * 100;
+            rsm_cmd.content.location.alt = z / 100;
             rsm_cmd.content.location.lat = y;
             rsm_cmd.content.location.lng = x;
             if (!mission.replace_cmd(i, rsm_cmd))
