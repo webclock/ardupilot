@@ -206,20 +206,20 @@ void Copter::my_mission_resume_setup(void)
 
     switch(g.wp_resume_mode)
     {
-    case 1://resume from certain point, open log file and read position from it
+    case 1://resume from certain point stored in parameters: wp_rsm_x, wp_rsm_y and wp_rsm_z
         resume_mission_POS(g.wp_rsm_pre_wp, g.wp_rsm_x, g.wp_rsm_y, g.wp_rsm_z);
         break;
 
     case 2://resume from the previous waypoint
         resume_mission_previous_WP(g.wp_rsm_pre_wp);
         break;
-
+    case 3://resume from the first RTL command was triggered
+        resume_mission_from_first_RTL(g.wp_rsm_x, g.wp_rsm_y, g.wp_rsm_z);
+        break;
     default:
         break;
     }
 
-     //set flag = FALSE
-    g.wp_rsm_pre_wp = -888;
 
     gcs_send_text(MAV_SEVERITY_WARNING,"Mission has been Re-Scheduled");
 
@@ -280,6 +280,10 @@ void Copter::resume_mission_POS(int previous_cmd, float x, float y, float z)
 
     //delete the rest of CMDs
     mission.truncate(tmp_idx+i);
+
+    //set flag = FALSE
+    g.wp_rsm_pre_wp = -111;
+
     DataFlash.Log_Write_Message("Flight Plan has been changed by EasyDrone.com....");
 
 }
@@ -291,9 +295,7 @@ void Copter::resume_mission_previous_WP(int previous_cmd)
 
     // check for empty mission
     if (mission.num_commands() == 0)
-    {
         return;
-    }
 
     uint16_t tmp_idx = 0;
     uint16_t i = 0;
@@ -329,8 +331,68 @@ void Copter::resume_mission_previous_WP(int previous_cmd)
 
     //delete the rest of CMDs
     mission.truncate(tmp_idx+i);
+
+    //set flag = FALSE
+    g.wp_rsm_pre_wp = -222;
+
     DataFlash.Log_Write_Message("Flight Plan has been changed by EasyDrone.com....");
 
+}
+
+void Copter::resume_mission_from_first_RTL(float x, float y, float z)
+{
+    AP_Mission::Mission_Command cmd;
+
+    // Command #0 : home
+    if (mission.num_commands() != 0)
+    {
+        //keep home location
+        mission.read_cmd_from_storage(0, cmd);
+        mission.clear();
+        if (!mission.add_cmd(cmd))
+            DataFlash.Log_Write_Message("RSM_from_FirstRTL: Failed to add Home\n");
+
+    }
+    else
+    {
+        // Command #0 : home
+        cmd.id = MAV_CMD_NAV_WAYPOINT;
+        cmd.content.location.options = 0;
+        cmd.p1 = 0;
+        cmd.content.location.alt = 0;
+        cmd.content.location.lat = 382942480;
+        cmd.content.location.lng = 1176635742;
+        if (!mission.add_cmd(cmd)) {
+            DataFlash.Log_Write_Message("RSM_from_FirstRTL: Failed to add Home\n");
+        }
+    }
+
+    // Command #1 : take-off to 30m
+    cmd.id = MAV_CMD_NAV_TAKEOFF;
+    cmd.content.location.options = 0;
+    cmd.p1 = 0;
+    cmd.content.location.alt = 3000;
+    cmd.content.location.lat = 0;
+    cmd.content.location.lng = 0;
+    if (!mission.add_cmd(cmd)) {
+        DataFlash.Log_Write_Message("RSM_from_FirstRTL: Failed to add Take Off\n");
+    }
+
+    // Command #2 : fly to target waypoint, and Loiter for 600s
+    cmd.id = MAV_CMD_NAV_LOITER_TIME;
+    cmd.content.location.options = 0;
+    cmd.p1 = 600;
+    cmd.content.location.alt = z;
+    cmd.content.location.lat = y;
+    cmd.content.location.lng = x;
+    if (!mission.add_cmd(cmd)) {
+        DataFlash.Log_Write_Message("RSM_from_FirstRTL: Failed to add Target\n");
+    }
+
+    //set flag = FALSE
+    g.wp_rsm_pre_wp = -333;
+
+    DataFlash.Log_Write_Message("Flight Plan has been changed by EasyDrone.com....");
 }
 
 //Lei Deng***********************************************************
