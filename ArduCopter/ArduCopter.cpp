@@ -378,15 +378,25 @@ void Copter::resume_mission_from_first_RTL(float x, float y, float z)
         DataFlash.Log_Write_Message("RSM_from_FirstRTL: Failed to add Take Off\n");
     }
 
-    // Command #2 : fly to target waypoint, and Loiter for 600s
+    // Command #2 : fly to target waypoint, and Loiter for 300s
     cmd.id = MAV_CMD_NAV_LOITER_TIME;
     cmd.content.location.options = 0;
-    cmd.p1 = 600;
+    cmd.p1 = 300;
     cmd.content.location.alt = z;
     cmd.content.location.lat = y;
     cmd.content.location.lng = x;
     if (!mission.add_cmd(cmd)) {
         DataFlash.Log_Write_Message("RSM_from_FirstRTL: Failed to add Target\n");
+    }
+
+    // Command #5 : RTL
+    cmd.id = MAV_CMD_NAV_RETURN_TO_LAUNCH;
+    cmd.p1 = 0;
+    cmd.content.location.lat = 0;
+    cmd.content.location.lng = 0;
+    cmd.content.location.alt = 0;
+    if (!mission.add_cmd(cmd)) {
+        DataFlash.Log_Write_Message("RSM_from_FirstRTL: Failed to add RTL\n");
     }
 
     //set flag = FALSE
