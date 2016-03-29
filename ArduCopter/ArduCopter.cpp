@@ -389,7 +389,7 @@ void Copter::resume_mission_from_first_RTL(float x, float y, float z)
         DataFlash.Log_Write_Message("RSM_from_FirstRTL: Failed to add Target\n");
     }
 
-    // Command #5 : RTL
+    // Command #3 : RTL
     cmd.id = MAV_CMD_NAV_RETURN_TO_LAUNCH;
     cmd.p1 = 0;
     cmd.content.location.lat = 0;

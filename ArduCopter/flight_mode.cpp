@@ -65,6 +65,10 @@ bool Copter::set_mode(uint8_t mode)
 
         case RTL:
             success = rtl_init(ignore_checks);
+            //Lei Deng----------------------------------------
+            if(success)
+                wp_save_rtl_pos();
+            //Lei Deng****************************************
             break;
 
         case DRIFT:
@@ -181,9 +185,6 @@ void Copter::update_flight_mode()
 
         case RTL:
             rtl_run();
-            //Lei Deng---------------
-            wp_save_rtl_pos();
-            //Lei Deng***************
             break;
 
         case DRIFT:
