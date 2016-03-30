@@ -192,6 +192,21 @@ public:
         k_param_pos_control,
         k_param_circle_nav,     // 104
 
+        //Lei Deng----------------------------------------------------------------------------------
+        // 105: wp_resume
+        //
+        k_param_wp_resume_mode = 105, // To be used to decide how the "resume mission" is performed.
+                                      //---------0: No resume action will be performed
+                                      //---------1: From the mission-break point (x, y, z);
+                                      //---------2: From the previous WP.
+        k_param_wp_rsm_pre_wp,
+        k_param_wp_rsm_x,
+        k_param_wp_rsm_y,
+        k_param_wp_rsm_z,
+
+        //Lei Deng***********************************************************************************
+
+
         // 110: Telemetry control
         //
         k_param_gcs0 = 110,
@@ -450,6 +465,15 @@ public:
     AP_Int16        gcs_pid_mask;
 
     AP_Int8         throw_motor_start;
+
+    //Lei Deng-------------------------------------------------------
+    AP_Int8         wp_resume_mode;
+    AP_Int16        wp_rsm_pre_wp;
+    AP_Int32        wp_rsm_x;
+    AP_Int32        wp_rsm_y;
+    AP_Float        wp_rsm_z;
+
+    //Lei Deng*******************************************************
 
 #if FRAME_CONFIG ==     HELI_FRAME
     // Heli

@@ -360,6 +360,42 @@ const AP_Param::Info Copter::var_info[] = {
     // @User: Advanced
     GSCALAR(simple_modes, "SIMPLE",                 0),
 
+    // @Param: WP_RESUME_MODE
+    // @DisplayName: Mission Resume Mode
+    // @Description: Define how the mission will be resumed
+    // @Values: 0:No resume, 1: resume from mission-break point, 2: resume from previous WP, 3: resume oppsite direction
+    // @User: Advanced
+    GSCALAR(wp_resume_mode, "WP_RESUME_MODE", WP_RESUME_MODE_DEFAULT),
+
+    // @Param: WP_RSM_PRE_WP
+    // @DisplayName: Previous WayPoint
+    // @Description: The previous waypoint when exit mission
+    // @Values: #wp, -999
+    // @User: Advanced
+    GSCALAR(wp_rsm_pre_wp, "WP_RSM_PRE_WP", WP_RSM_PRE_WP_DEFAULT),
+
+    // @Param: WP_RSM_X
+    // @DisplayName: WP_RSM_X
+    // @Description: Do NOT change manually.
+    // @Values:0
+    // @User: Advanced
+    GSCALAR(wp_rsm_x, "WP_RSM_X", WP_RSM_POS_DEFAULT),
+
+    // @Param: WP_RSM_Y
+    // @DisplayName: WP_RSM_Y
+    // @Description: Do NOT change manually.
+    // @Values:0
+    // @User: Advanced
+    GSCALAR(wp_rsm_y, "WP_RSM_Y", WP_RSM_POS_DEFAULT),
+
+    // @Param: WP_RSM_Z
+    // @DisplayName: WP_RSM_Z
+    // @Description: Do NOT change manually.
+    // @Values:0
+    // @User: Advanced
+    GSCALAR(wp_rsm_z, "WP_RSM_Z", WP_RSM_POS_DEFAULT),
+
+
     // @Param: LOG_BITMASK
     // @DisplayName: Log bitmask
     // @Description: 4 byte bitmap of log types to enable

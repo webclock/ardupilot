@@ -65,6 +65,10 @@ bool Copter::set_mode(uint8_t mode)
 
         case RTL:
             success = rtl_init(ignore_checks);
+            //Lei Deng----------------------------------------
+            if(success)
+                wp_save_rtl_pos();
+            //Lei Deng****************************************
             break;
 
         case DRIFT:
@@ -217,6 +221,20 @@ void Copter::update_flight_mode()
     }
 }
 
+void Copter::wp_save_rtl_pos()
+{
+    if(g.wp_resume_mode == 0)
+        return;
+
+    if(g.wp_resume_mode == 3 && g.wp_rsm_pre_wp < 0)//only the first time RTL trigger can be saved
+    {
+        g.wp_rsm_x = inertial_nav.get_longitude();
+        g.wp_rsm_y = inertial_nav.get_latitude();
+        g.wp_rsm_z = inertial_nav.get_altitude();
+        g.wp_rsm_pre_wp = 0;
+    }
+}
+
 // exit_mode - high level call to organise cleanup as a flight mode is exited
 void Copter::exit_mode(uint8_t old_control_mode, uint8_t new_control_mode)
 {
@@ -229,6 +247,24 @@ void Copter::exit_mode(uint8_t old_control_mode, uint8_t new_control_mode)
     // stop mission when we leave auto mode
     if (old_control_mode == AUTO) {
         if (mission.state() == AP_Mission::MISSION_RUNNING) {
+            //Lei Deng------------------------------------------------------
+            //Get the position when exiting from AUTO mode,and get the coordinates.
+            if(g.wp_resume_mode == 0)
+                return;
+
+            if(g.wp_resume_mode ==1 || g.wp_resume_mode ==2)
+            {
+                if(g.wp_rsm_pre_wp < 0)//only the first time of MISSION CHANGE can be saved
+                {
+                    g.wp_rsm_x = inertial_nav.get_longitude();
+                    g.wp_rsm_y = inertial_nav.get_latitude();
+                    g.wp_rsm_z = inertial_nav.get_altitude();
+                    g.wp_rsm_pre_wp = mission.get_prev_nav_cmd_with_wp_index();
+                }
+
+            }
+            //Lei Deng*******************************************************
+
             mission.stop();
         }
 #if MOUNT == ENABLED

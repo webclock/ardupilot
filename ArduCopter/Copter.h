@@ -985,6 +985,14 @@ private:
     bool verify_command(const AP_Mission::Mission_Command& cmd);
     bool verify_command_callback(const AP_Mission::Mission_Command& cmd);
 
+    //Lei Deng-------------------------------------------------
+    void my_mission_resume_setup();
+    void resume_mission_POS(int previous_cmd, float x, float y, float z);
+    void resume_mission_previous_WP(int previous_cmd);
+    void resume_mission_from_first_RTL(float x, float y, float z);
+    void wp_save_rtl_pos();
+    //Lei Deng**************************************************
+
     bool do_guided(const AP_Mission::Mission_Command& cmd);
     void do_takeoff(const AP_Mission::Mission_Command& cmd);
     void do_nav_wp(const AP_Mission::Mission_Command& cmd);
@@ -1024,6 +1032,7 @@ private:
     void auto_spline_start(const Vector3f& destination, bool stopped_at_start, AC_WPNav::spline_segment_end_type seg_end_type, const Vector3f& next_spline_destination);
 
     void print_flight_mode(AP_HAL::BetterStream *port, uint8_t mode);
+
     void log_init(void);
     void run_cli(AP_HAL::UARTDriver *port);
     void init_capabilities(void);

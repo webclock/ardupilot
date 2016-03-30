@@ -59,3 +59,18 @@
 //#define USERHOOK_MEDIUMLOOP userhook_MediumLoop();        // for code to be run at 10hz
 //#define USERHOOK_SLOWLOOP userhook_SlowLoop();            // for code to be run at 3.3hz
 //#define USERHOOK_SUPERSLOWLOOP userhook_SuperSlowLoop();  // for code to be run at 1hz
+
+
+#ifndef WP_RESUME_MODE_DEFAULT
+ # define WP_RESUME_MODE_DEFAULT      2     // default value for my new parameter
+#endif
+
+
+#ifndef WP_RSM_PRE_WP_DEFAULT
+ # define WP_RSM_PRE_WP_DEFAULT      -999     // default value for my new parameter
+#endif
+
+#ifndef WP_RSM_POS_DEFAULT
+ # define WP_RSM_POS_DEFAULT      0     // default value for my new parameter
+#endif
+
