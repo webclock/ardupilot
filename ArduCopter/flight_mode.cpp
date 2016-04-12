@@ -65,10 +65,6 @@ bool Copter::set_mode(uint8_t mode)
 
         case RTL:
             success = rtl_init(ignore_checks);
-            //Lei Deng----------------------------------------
-            if(success)
-                wp_save_rtl_pos();
-            //Lei Deng****************************************
             break;
 
         case DRIFT:
@@ -113,6 +109,11 @@ bool Copter::set_mode(uint8_t mode)
         // perform any cleanup required by previous flight mode
         exit_mode(control_mode, mode);
         control_mode = mode;
+        
+        //Lei Deng----------------------------------------
+        wp_save_rtl_pos();
+        //Lei Deng****************************************
+
         DataFlash.Log_Write_Mode(control_mode);
 
 #if AC_FENCE == ENABLED
@@ -221,6 +222,7 @@ void Copter::update_flight_mode()
     }
 }
 
+//Lei Deng-----------------------------------------------------------------------------
 void Copter::wp_save_rtl_pos()
 {
     if(g.wp_resume_mode == 0)
@@ -229,11 +231,19 @@ void Copter::wp_save_rtl_pos()
     if(g.wp_resume_mode == 3 && g.wp_rsm_pre_wp < 0)//only the first time RTL trigger can be saved
     {
         g.wp_rsm_x = inertial_nav.get_longitude();
+        g.wp_rsm_x.save();
         g.wp_rsm_y = inertial_nav.get_latitude();
+        g.wp_rsm_y.save();
         g.wp_rsm_z = inertial_nav.get_altitude();
+        g.wp_rsm_z.save();
         g.wp_rsm_pre_wp = 0;
+        g.wp_rsm_pre_wp.save();
     }
 }
+
+//Lei Deng******************************************************************************
+
+
 
 // exit_mode - high level call to organise cleanup as a flight mode is exited
 void Copter::exit_mode(uint8_t old_control_mode, uint8_t new_control_mode)
@@ -257,9 +267,21 @@ void Copter::exit_mode(uint8_t old_control_mode, uint8_t new_control_mode)
                 if(g.wp_rsm_pre_wp < 0)//only the first time of MISSION CHANGE can be saved
                 {
                     g.wp_rsm_x = inertial_nav.get_longitude();
+                    g.wp_rsm_x.save();
+
                     g.wp_rsm_y = inertial_nav.get_latitude();
+                    g.wp_rsm_y.save();
+
                     g.wp_rsm_z = inertial_nav.get_altitude();
+                    g.wp_rsm_z.save();
+
                     g.wp_rsm_pre_wp = mission.get_prev_nav_cmd_with_wp_index();
+                    g.wp_rsm_pre_wp.save();
+
+                    DataFlash.Log_Write_Parameter("wp_rsm_x: ", inertial_nav.get_longitude());
+                    DataFlash.Log_Write_Parameter("wp_rsm_y: ", inertial_nav.get_latitude());
+                    DataFlash.Log_Write_Parameter("wp_rsm_z: ", inertial_nav.get_altitude());
+                    DataFlash.Log_Write_Parameter("wp_rsm_pre_wp: ", mission.get_prev_nav_cmd_with_wp_index());
                 }
 
             }

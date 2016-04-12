@@ -283,6 +283,7 @@ void Copter::resume_mission_POS(int previous_cmd, float x, float y, float z)
 
     //set flag = FALSE
     g.wp_rsm_pre_wp = -111;
+    g.wp_rsm_pre_wp.save();
 
     DataFlash.Log_Write_Message("Flight Plan has been changed by EasyDrone.com....");
 
@@ -334,6 +335,7 @@ void Copter::resume_mission_previous_WP(int previous_cmd)
 
     //set flag = FALSE
     g.wp_rsm_pre_wp = -222;
+    g.wp_rsm_pre_wp.save();
 
     DataFlash.Log_Write_Message("Flight Plan has been changed by EasyDrone.com....");
 
@@ -401,6 +403,7 @@ void Copter::resume_mission_from_first_RTL(float x, float y, float z)
 
     //set flag = FALSE
     g.wp_rsm_pre_wp = -333;
+    g.wp_rsm_pre_wp.save();
 
     DataFlash.Log_Write_Message("Flight Plan has been changed by EasyDrone.com....");
 }
