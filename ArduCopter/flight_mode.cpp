@@ -111,7 +111,10 @@ bool Copter::set_mode(uint8_t mode)
         control_mode = mode;
         
         //Lei Deng----------------------------------------
-        wp_save_rtl_pos();
+        if(mode == RTL)
+        {
+            wp_save_rtl_pos();
+        }
         //Lei Deng****************************************
 
         DataFlash.Log_Write_Mode(control_mode);
@@ -232,10 +235,13 @@ void Copter::wp_save_rtl_pos()
     {
         g.wp_rsm_x = inertial_nav.get_longitude();
         g.wp_rsm_x.save();
+
         g.wp_rsm_y = inertial_nav.get_latitude();
         g.wp_rsm_y.save();
+
         g.wp_rsm_z = inertial_nav.get_altitude();
         g.wp_rsm_z.save();
+
         g.wp_rsm_pre_wp = 0;
         g.wp_rsm_pre_wp.save();
     }
@@ -278,10 +284,10 @@ void Copter::exit_mode(uint8_t old_control_mode, uint8_t new_control_mode)
                     g.wp_rsm_pre_wp = mission.get_prev_nav_cmd_with_wp_index();
                     g.wp_rsm_pre_wp.save();
 
-                    DataFlash.Log_Write_Parameter("wp_rsm_x: ", inertial_nav.get_longitude());
-                    DataFlash.Log_Write_Parameter("wp_rsm_y: ", inertial_nav.get_latitude());
-                    DataFlash.Log_Write_Parameter("wp_rsm_z: ", inertial_nav.get_altitude());
-                    DataFlash.Log_Write_Parameter("wp_rsm_pre_wp: ", mission.get_prev_nav_cmd_with_wp_index());
+                    //DataFlash.Log_Write_Parameter("wp_rsm_x: ", inertial_nav.get_longitude());
+                    //DataFlash.Log_Write_Parameter("wp_rsm_y: ", inertial_nav.get_latitude());
+                    //DataFlash.Log_Write_Parameter("wp_rsm_z: ", inertial_nav.get_altitude());
+                    //DataFlash.Log_Write_Parameter("wp_rsm_pre_wp: ", mission.get_prev_nav_cmd_with_wp_index());
                 }
 
             }
