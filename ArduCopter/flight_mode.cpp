@@ -244,6 +244,9 @@ void Copter::wp_save_rtl_pos()
 
         g.wp_rsm_pre_wp = 0;
         g.wp_rsm_pre_wp.save();
+
+        DataFlash.Log_Write_Parameter("[EasyDone] Resume_Mode is logged: ", g.wp_resume_mode);
+        DataFlash.Log_Write_POS(ahrs);
     }
 }
 
@@ -284,10 +287,8 @@ void Copter::exit_mode(uint8_t old_control_mode, uint8_t new_control_mode)
                     g.wp_rsm_pre_wp = mission.get_prev_nav_cmd_with_wp_index();
                     g.wp_rsm_pre_wp.save();
 
-                    //DataFlash.Log_Write_Parameter("wp_rsm_x: ", inertial_nav.get_longitude());
-                    //DataFlash.Log_Write_Parameter("wp_rsm_y: ", inertial_nav.get_latitude());
-                    //DataFlash.Log_Write_Parameter("wp_rsm_z: ", inertial_nav.get_altitude());
-                    //DataFlash.Log_Write_Parameter("wp_rsm_pre_wp: ", mission.get_prev_nav_cmd_with_wp_index());
+                    DataFlash.Log_Write_Parameter("[EasyDone] Resume_Mode is logged: ", g.wp_resume_mode);
+                    DataFlash.Log_Write_POS(ahrs);
                 }
 
             }
